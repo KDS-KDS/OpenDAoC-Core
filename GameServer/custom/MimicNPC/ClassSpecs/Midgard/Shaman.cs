@@ -10,14 +10,20 @@ namespace DOL.GS.Scripts
 
     public class ShamanSpec : MimicSpec
     {
-        public ShamanSpec()
+        public ShamanSpec(eSpecType spec)
         {
             SpecName = "ShamanSpec";
 
             WeaponOneType = eObjectType.Hammer;
             Is2H = Util.RandomBool();
 
-            int randVariance = Util.Random(7);
+            var randVariance = spec switch
+            {
+                eSpecType.AugShaman => Util.Random(0, 4),
+                eSpecType.SubtShaman => Util.Random(5, 6),
+                eSpecType.MendShaman => 7,
+                _ => Util.Random(7),
+            };
             
             switch (randVariance)
             {

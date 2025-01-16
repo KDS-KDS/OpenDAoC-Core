@@ -30,6 +30,8 @@ namespace DOL.AI.Brain
 
         public override bool IsActive => Body != null && Body.IsAlive && Body.ObjectState == GameObject.eObjectState.Active;
 
+        public bool IsHealer = false;
+
         public bool IsMainPuller
         { get { return Body.Group?.MimicGroup.MainPuller == Body; } }
 
@@ -167,7 +169,7 @@ namespace DOL.AI.Brain
                 break;
             }
 
-            if (FSM.GetState(eFSMStateType.AGGRO) != FSM.GetCurrentState())
+            if (FSM.GetState(eFSMStateType.AGGRO) != FSM.GetCurrentState() && !IsHealer)
                 FSM.SetCurrentState(eFSMStateType.AGGRO);
         }
 
@@ -461,7 +463,7 @@ namespace DOL.AI.Brain
 
         public bool SetGuard(GameLiving target, out bool ourEffect)
         {
-            if (target != null)
+            if (target != null && target != Body)
             {
                 GuardAbilityHandler.CheckExistingEffectsOnTarget(Body, target, true, out bool foundOurEffect, out GuardECSGameEffect existingEffectFromAnotherSource);
 
@@ -474,6 +476,52 @@ namespace DOL.AI.Brain
                     return false;
 
                 GuardAbilityHandler.CancelOurEffectThenAddOnTarget(Body, target);
+
+                return true;
+            }
+
+            ourEffect = false;
+            return false;
+        }
+
+        public bool SetProtect(GameLiving target, out bool ourEffect)
+        {
+            if (target != null && target != Body)
+            {
+                ProtectAbilityHandler.CheckExistingEffectsOnTarget(Body, target, true, out bool foundOurEffect, out ProtectECSGameEffect existingEffectFromAnotherSource);
+
+                ourEffect = foundOurEffect;
+
+                if (foundOurEffect)
+                    return false;
+
+                if (existingEffectFromAnotherSource != null)
+                    return false;
+
+                ProtectAbilityHandler.CancelOurEffectThenAddOnTarget(Body, target);
+
+                return true;
+            }
+
+            ourEffect = false;
+            return false;
+        }
+
+        public bool SetIntercept(GameLiving target, out bool ourEffect)
+        {
+            if (target != null && target != Body)
+            {
+                InterceptAbilityHandler.CheckExistingEffectsOnTarget(Body, target, true, out bool foundOurEffect, out InterceptECSGameEffect existingEffectFromAnotherSource);
+
+                ourEffect = foundOurEffect;
+
+                if (foundOurEffect)
+                    return false;
+
+                if (existingEffectFromAnotherSource != null)
+                    return false;
+
+                InterceptAbilityHandler.CancelOurEffectThenAddOnTarget(Body, target);
 
                 return true;
             }
@@ -820,7 +868,7 @@ namespace DOL.AI.Brain
             }
 
             // Change state and reschedule the next think tick to improve responsiveness.
-            if (FSM.GetCurrentState() != FSM.GetState(eFSMStateType.AGGRO) && HasAggro)
+            if (FSM.GetCurrentState() != FSM.GetState(eFSMStateType.AGGRO) && HasAggro && !IsHealer)
             {
                 FSM.SetCurrentState(eFSMStateType.AGGRO);
                 NextThinkTick = GameLoop.GameLoopTime;
@@ -841,6 +889,13 @@ namespace DOL.AI.Brain
         public virtual void RemoveFromAggroList(GameLiving living)
         {
             AggroList.TryRemove(living, out _);
+        }
+
+        public long GetMaxAggro()
+        {
+            return AggroList.IsEmpty
+                ? 0
+                : AggroList.OrderByDescending(x => x.Value.Effective).Select(x => (x.Key, x.Value.Effective)).ToList().First().Effective;
         }
 
         public List<(GameLiving, long)> GetOrderedAggroList()
@@ -880,7 +935,7 @@ namespace DOL.AI.Brain
 
             if (HasAggro)
             {
-                if (FSM.GetCurrentState() != FSM.GetState(eFSMStateType.AGGRO))
+                if (FSM.GetCurrentState() != FSM.GetState(eFSMStateType.AGGRO) && !IsHealer)
                     FSM.SetCurrentState(eFSMStateType.AGGRO);
 
                 NextThinkTick = GameLoop.GameLoopTime;
@@ -1360,72 +1415,8 @@ namespace DOL.AI.Brain
             List<Spell> spellsToCast = new();
 
             // Healers should heal whether in combat or out of it.
-            if (!casted && Body.CanCastHealSpells)
-            {
-                GameLiving livingToHeal = null;
-
-                int healThreshold = Properties.NPC_HEAL_THRESHOLD;
-                int emergencyThreshold = healThreshold / 2;
-
-                short numNeedHealing = 0;
-                bool singleEmergency = false;
-                bool groupEmergency = false;
-
-                if (Body.Group != null)
-                {
-                    short healthPercent = 100;
-                    short numEmergency = 0;
-
-                    foreach (GameLiving groupMember in Body.Group.GetMembersInTheGroup())
-                    {
-                        if (groupMember.HealthPercent < healThreshold)
-                        {
-                            if (groupMember.HealthPercent < healthPercent)
-                            {
-                                healthPercent = groupMember.HealthPercent;
-                                livingToHeal = groupMember;
-                                numNeedHealing++;
-
-                                if (groupMember.HealthPercent < emergencyThreshold)
-                                    numEmergency++;
-                            }
-                        }
-                    }
-
-                    if (numEmergency == 1)
-                        singleEmergency = true;
-                    else if (numEmergency > Body.Group.GetMembersInTheGroup().Count / 2)
-                        groupEmergency = true;
-                }
-                else
-                {
-                    if (Body.HealthPercent < healThreshold)
-                    {
-                        if (Body.HealthPercent < emergencyThreshold)
-                            singleEmergency = true;
-
-                        livingToHeal = Body;
-                    }
-                }
-
-                Spell spellTocast;
-
-                if ((singleEmergency || groupEmergency) && Body.CanCastInstantHealSpells)
-                    spellTocast = Body.InstantHealSpells[Util.Random(Body.InstantHealSpells.Count - 1)];
-                else
-                {
-                    Spell cureDisease = null;
-
-                    if (livingToHeal != null && livingToHeal.IsDiseased && (cureDisease = Body.HealSpells.FirstOrDefault(spell => spell.SpellType == eSpellType.CureDisease)) != null)
-                    {
-                        spellTocast = cureDisease;
-                    }
-                    else
-                        spellTocast = Body.HealSpells[Util.Random(Body.HealSpells.Count - 1)];
-                }
-
-                casted = CheckHealSpells(spellTocast, numNeedHealing, singleEmergency, groupEmergency, livingToHeal);
-            }
+            if (CheckHeals())
+                return true;
 
             if (!casted && type == eCheckSpellType.CrowdControl)
             {
@@ -1622,59 +1613,504 @@ namespace DOL.AI.Brain
             return true;
         }
 
-        protected bool CheckHealSpells(Spell spell, short numNeedHealing, bool singleEmergency, bool groupEmergency, GameLiving livingToHeal)
+        /// <summary>Have we already checked heals this loop?</summary>
+        public bool AlreadyCheckedHeals;
+        private long nextCureTime = 0;
+
+        /// <summary>Check for healing and cure spells</summary>
+        /// <returns>True if trying to heal, including moving to get into range</returns>
+        public bool CheckHeals()
         {
-            if (!CanCastDefensiveSpell(spell))
+            /* Summary of priorities:
+                Below emergency threshold, heal as fast as possible:
+                    Instant heal
+                    Interrupt casting non healing spells
+                    Group heal if doing so heals the group more than single target would
+                    Cast our biggest heal
+                    Cast our most efficient heal
+
+                Cure Mez
+                Cure disease on most injured
+                Cure poison on most injured
+
+                Below healing threshold, prioritize efficiency:
+                    Let the current spell finish casting before healing        
+                    Apply HoT
+                    Group heal if doing so is more mana efficient than single target
+                    Cast our biggest heal if we're above mana threshold and they've lost enough health to merit it
+                    Cast our most efficient heal
+
+            Notes:
+                Dedicated healers will heal group members over threshold, and are more likely to use group heals efficiently
+                Spread heals are not being considered
+                The following spell types will only be cast by a single group member at a time:
+                    Instant heal, HoT, health regen, cure mezz, cure disease, cure poison
+                Cure disease and poison are on a shared timer so cure spam doesn't stop non-emergency healing,
+                    and gives secondary healers a chance to cure
+                Local functions are used extensively to minimize unnecessary spell checks and move complexity out of spell selection
+            */
+
+            const byte ManaThreshold = 90;
+            const long CureDelay = 5000;
+
+            if (AlreadyCheckedHeals || !Body.CanCastHealSpells || Body.IsStunned || Body.IsMezzed || Body.IsSilenced)
                 return false;
 
-            GameObject lastTarget = Body.TargetObject;
-            Body.TargetObject = null;
+            AlreadyCheckedHeals = true;
 
-            if (livingToHeal != null)
+            #region Instant Spell Local Functions
+
+            bool? m_canCastInstantHeal = null;
+            bool CanCastInstantHeal() => m_canCastInstantHeal ??= CheckHealSpell(MimicBody.HealInstant);
+
+            bool? m_canCastInstantGroupHeal = null;
+            bool CanCastInstantGroupHeal() => m_canCastInstantGroupHeal ??= CheckHealSpell(MimicBody.HealInstantGroup);
+
+            bool? m_canCastInstantHot = null;
+            bool CanCastInstantHot() => m_canCastInstantHot ??= CheckHealSpell(MimicBody.HealOverTimeInstant);
+
+            bool? m_canCastInstantGroupHot = null;
+            bool CanCastInstantGroupHot() => m_canCastInstantGroupHot ??= CheckHealSpell(MimicBody.HealOverTimeInstantGroup);
+
+            // Instant cure spells are incredibly rare, so it's faster to check if instant before the general spell check
+            bool? m_canCastCureDisease = null;
+            bool CanCastCureDisease() => m_canCastCureDisease ??= CheckHealSpell(MimicBody.CureDisease) 
+                && (!MimicBody.IsBeingInterruptedIgnoreSelfInterrupt || MimicBody.CureDisease.IsInstantCast);
+            bool CanCastCureDiseaseInstant() => MimicBody.CureDisease != null && MimicBody.CureDisease.IsInstantCast 
+                && CanCastCureDisease();
+
+            bool? m_canCastCureDiseaseGroup = null;
+            bool CanCastCureDiseaseGroup() => m_canCastCureDiseaseGroup ??= CheckHealSpell(MimicBody.CureDiseaseGroup)
+                && (!MimicBody.IsBeingInterruptedIgnoreSelfInterrupt || MimicBody.CureDiseaseGroup.IsInstantCast);
+            bool CanCastCureDiseaseGroupInstant() => MimicBody.CureDiseaseGroup != null && MimicBody.CureDiseaseGroup.IsInstantCast
+                && CanCastCureDiseaseGroup();
+
+            bool? m_canCastCurePoison = null;
+            bool CanCastCurePoison() => m_canCastCurePoison ??= CheckHealSpell(MimicBody.CurePoison)
+                && (!MimicBody.IsBeingInterruptedIgnoreSelfInterrupt || MimicBody.CurePoison.IsInstantCast);
+            bool CanCastCurePoisonInstant() => MimicBody.CurePoison != null && MimicBody.CurePoison.IsInstantCast
+                && CanCastCurePoison();
+
+            bool? m_canCastCurePoisonGroup = null;
+            bool CanCastCurePoisonGroup() => m_canCastCurePoisonGroup ??= CheckHealSpell(MimicBody.CurePoisonGroup)
+                && (!MimicBody.IsBeingInterruptedIgnoreSelfInterrupt || MimicBody.CurePoisonGroup.IsInstantCast);
+            bool CanCastCurePoisonGroupInstant() => MimicBody.CurePoisonGroup != null && MimicBody.CurePoisonGroup.IsInstantCast
+                && CanCastCurePoisonGroup();
+
+            bool CanCastInstant() => CanCastInstantHeal() || CanCastInstantGroupHeal() 
+                || CanCastInstantHot() || CanCastInstantGroupHot()
+                || CanCastCureDiseaseInstant() || CanCastCureDiseaseGroupInstant()
+                || CanCastCurePoisonInstant() || CanCastCurePoisonGroupInstant();
+
+            #endregion
+
+            if (MimicBody.IsBeingInterruptedIgnoreSelfInterrupt && !CanCastInstant())
+                return false;
+
+            bool isCastingHeal = MimicBody.IsCasting && MimicBody.castingComponent.SpellHandler.Spell.IsHealing;
+
+            if (isCastingHeal && !CanCastInstant())
+                return true;
+
+            // Working variables
+            int amountToHeal;
+            int numEmergency = 0;
+            int numNeedHealing = 0;
+            Spell spellToCast = null;
+            GameLiving spellTarget = null;
+            GameObject oldTarget;
+            bool startedCasting = false;
+
+            #region Local Functions
+
+            bool? m_canCastGroupHeal = null;
+            bool CanCastGroupHeal() => m_canCastGroupHeal ??= CheckHealSpell(MimicBody.HealGroup);
+
+            bool? m_canCastBigHeal = null;
+            bool CanCastBigHeal() => m_canCastBigHeal ??= CheckHealSpell(MimicBody.HealBig);
+
+            bool? m_canCastEfficientHeal = null;
+            bool CanCastEfficientHeal() => m_canCastEfficientHeal ??= CheckHealSpell(MimicBody.HealEfficient);
+
+            bool? m_canCastHot = null;
+            bool CanCastHot() => m_canCastHot ??= CheckHealSpell(MimicBody.HealOverTime);
+
+            bool? m_canCastHotGroup = null;
+            bool CanCastHotGroup() => m_canCastHotGroup ??= CheckHealSpell(MimicBody.HealOverTimeGroup);
+
+            bool CheckHealSpell(Spell spell, bool checkGroup = true)
+            {
+                return spell != null
+                    && (!MimicBody.IsBeingInterruptedIgnoreSelfInterrupt || spell.IsInstantCast)
+                    && (!spell.HasRecastDelay || MimicBody.GetSkillDisabledDuration(spell) <= 0)
+                    && MimicBody.Mana >= MimicBody.PowerCost(spell);
+            }
+
+            double m_groupHealVal = double.MinValue;
+            double GetGroupHealVal()
+            {
+                if (m_groupHealVal < 0)
+                {
+                    m_groupHealVal = MimicBody.HealGroup.Value >= 0
+                        ? numNeedHealing * MimicBody.HealGroup.Value
+                        : amountToHeal * MimicBody.HealGroup.Value * -0.01d;
+                }
+                return m_groupHealVal;
+            }
+
+            double m_effectHoT = double.MinValue;
+            double m_effectRegen = double.MinValue;
+            double GetHotEffect(Spell spell)
             {
                 switch (spell.SpellType)
                 {
-                    case eSpellType.CureDisease:
-                    case eSpellType.CombatHeal:
-                    case eSpellType.Heal:
                     case eSpellType.HealOverTime:
-                    case eSpellType.MercHeal:
-                    case eSpellType.OmniHeal:
-                    case eSpellType.PBAoEHeal:
-                    case eSpellType.SpreadHeal:
+                        if (m_effectHoT < 0d)
+                        {
+                            List<ECSGameEffect> effects;
+                            lock (spellTarget.effectListComponent.EffectsLock)
+                            {
+                                spellTarget.effectListComponent.Effects.TryGetValue(eEffect.HealOverTime, out effects);
 
-                    if (spell.IsInstantCast)
-                    {
-                        if (Body.IsWithinRadius(livingToHeal, spell.Range))
-                            Body.TargetObject = livingToHeal;
-                        break;
-                    }
+                                if (effects != null)
+                                {
+                                    foreach (ECSGameEffect effect in effects)
+                                        if (effect is ECSGameSpellEffect)
+                                        {
+                                            double newHoT = MimicNPC.HealAmount(effect.SpellHandler.Spell, spellTarget);
+                                            if (newHoT > m_effectHoT)
+                                                m_effectHoT = newHoT;
+                                        }
+                                }
+                                else
+                                    m_effectHoT = 0d;
+                            }
+                        }
+                        return m_effectHoT;
+                    case eSpellType.HealthRegenBuff:
+                        if (m_effectRegen < 0d)
+                        {
+                            List<ECSGameEffect> effects;
+                            lock (spellTarget.effectListComponent.EffectsLock)
+                                spellTarget.effectListComponent.Effects.TryGetValue(eEffect.HealthRegenBuff, out effects);
 
-                    if (spell.Target == eSpellTarget.GROUP && numNeedHealing < 2)
-                        break;
-
-                    if (spell.Target == eSpellTarget.SELF && numNeedHealing < 2)
-                        break;
-
-                    if (!LivingHasEffect(livingToHeal, spell) && Body.IsWithinRadius(livingToHeal, spell.Range))
-                    {
-                        Body.TargetObject = livingToHeal;
-                        break;
-                    }
-
-                    break;
+                            if (effects != null)
+                            {
+                                foreach (ECSGameEffect effect in effects)
+                                    if (effect is ECSGameSpellEffect)
+                                    {
+                                        double newRegen = MimicNPC.HealAmount(effect.SpellHandler.Spell, spellTarget);
+                                        if (newRegen > m_effectRegen)
+                                            m_effectRegen = newRegen;
+                                    }
+                            }
+                            else
+                                m_effectRegen = 0d;
+                        }
+                        return m_effectRegen;
                 }
+
+                return 0d;
             }
 
-            if (Body.TargetObject != null)
+            #endregion
+
+            MimicGroup mGroup = MimicBody.Group?.MimicGroup;
+
+            lock (mGroup?.HealLock ?? new object())
             {
-                //log.Info("Tried to cast " + spell.Name + " " + spell.SpellType.ToString());
-                Body.CastSpell(spell, m_mobSpellLine, false);
-                return true;
-            }
+                #region Check Health
 
-            Body.TargetObject = lastTarget;
-            return false;
+                if (mGroup == null)
+                {
+                    amountToHeal = MimicBody.MaxHealth - MimicBody.Health;
+
+                    if (amountToHeal > 0)
+                    {
+                        spellTarget = MimicBody;
+
+                        if (MimicBody.HealthPercent < MimicGroup.HealThreshold)
+                        {
+                            numNeedHealing = 1;
+
+                            if (MimicBody.HealthPercent < MimicGroup.EmergencyThreshold)
+                                numEmergency = 1;
+                        }
+                    }
+                }
+                else
+                {
+                    mGroup.CheckGroupHealth(MimicBody);
+
+                    amountToHeal = mGroup.AmountToHeal;
+                    numEmergency = mGroup.NumNeedEmergencyHealing;
+                    numNeedHealing = IsHealer 
+                        ? mGroup.NumInjured 
+                        : mGroup.NumNeedHealing;
+                    spellTarget = mGroup.MemberToHeal;
+
+                    if (mGroup.AlreadyCastInstantHeal)
+                        m_canCastInstantHeal = m_canCastInstantGroupHeal = false;
+
+                    if (mGroup.AlreadyCastingHoT)
+                    {
+                        if (MimicBody.HealOverTimeInstant == null || MimicBody.HealOverTimeInstant.SpellType == eSpellType.HealOverTime)
+                            m_canCastInstantHot = false;
+                        if (MimicBody.HealOverTimeInstantGroup == null || MimicBody.HealOverTimeInstantGroup.SpellType == eSpellType.HealOverTime)
+                            m_canCastInstantGroupHot = false;
+                        if (MimicBody.HealOverTime == null || MimicBody.HealOverTime.SpellType == eSpellType.HealOverTime)
+                            m_canCastHot = false;
+                        if (MimicBody.HealOverTimeGroup == null || MimicBody.HealOverTimeGroup.SpellType == eSpellType.HealOverTime)
+                            m_canCastHotGroup = false;
+                    }
+
+                    if (mGroup.AlreadyCastingRegen)
+                    {
+                        if (MimicBody.HealOverTimeInstant == null || MimicBody.HealOverTimeInstant.SpellType == eSpellType.HealthRegenBuff)
+                            m_canCastInstantHot = false;
+                        if (MimicBody.HealOverTimeInstantGroup == null || MimicBody.HealOverTimeInstantGroup.SpellType == eSpellType.HealthRegenBuff)
+                            m_canCastInstantGroupHot = false;
+                        if (MimicBody.HealOverTime == null || MimicBody.HealOverTime.SpellType == eSpellType.HealthRegenBuff)
+                            m_canCastHot = false;
+                        if (MimicBody.HealOverTimeGroup == null || MimicBody.HealOverTimeGroup.SpellType == eSpellType.HealthRegenBuff)
+                            m_canCastHotGroup = false;
+                    }
+
+                    if (mGroup.AlreadyCastingCureDisease)
+                        m_canCastCureDisease = m_canCastCureDiseaseGroup = false;
+
+                    if (mGroup.AlreadyCastingCurePoison)
+                        m_canCastCurePoison = m_canCastCurePoisonGroup = false;
+                }
+
+                #endregion
+ 
+                #region Emergency Heal
+
+                if (numEmergency > 0)
+                {
+                    if (numEmergency > 1)
+                    {
+                        if (CanCastInstantGroupHeal())
+                            spellToCast = MimicBody.HealInstantGroup;
+                        else if (CanCastInstantHeal())
+                            spellToCast = MimicBody.HealInstant;
+                        else if (!isCastingHeal && CanCastGroupHeal())
+                        {
+                            if (MimicNPC.HealAmount(MimicBody.HealBig, spellTarget) > GetGroupHealVal() && CanCastBigHeal())
+                                spellToCast = MimicBody.HealBig;
+                            else if (MimicNPC.HealAmount(MimicBody.HealEfficient, spellTarget) > GetGroupHealVal() && CanCastEfficientHeal())
+                                spellToCast = MimicBody.HealEfficient;
+                            else
+                                spellToCast = MimicBody.HealGroup;
+                        }
+                    }
+
+                    if (spellToCast == null)
+                    {
+                        if (CanCastInstantHeal())
+                            spellToCast = MimicBody.HealInstant;
+                        else if (CanCastInstantGroupHeal())
+                            spellToCast = MimicBody.HealInstantGroup;
+                        else if (!isCastingHeal)
+                        {
+                            if (CanCastBigHeal())
+                                spellToCast = MimicBody.HealBig;
+                            else if (CanCastEfficientHeal())
+                                spellToCast = MimicBody.HealEfficient;
+                        }
+                    }
+                }
+
+                #endregion
+ 
+                #region Cure Mess/Disease/Poison
+
+                if (spellToCast == null)
+                {
+                    if (mGroup != null && mGroup.MemberToCureMezz != null && !mGroup.AlreadyCastingCureMezz
+                        && !MimicBody.IsCasting && CheckHealSpell(MimicBody.CureMezz))
+                    {
+                        spellToCast = MimicBody.CureMezz;
+                        spellTarget = mGroup.MemberToCureMezz;
+                    }
+                    else if (mGroup == null)
+                    {
+                        if (MimicBody.IsDiseased && nextCureTime < GameLoop.GameLoopTime)
+                        {
+                            if (CanCastCureDisease() && (!MimicBody.IsCasting || CanCastCureDiseaseInstant()))
+                            {
+                                spellToCast = MimicBody.CureDisease;
+                                spellTarget = MimicBody;
+                            }
+                            else if (CanCastCureDiseaseGroup() && (!MimicBody.IsCasting) || CanCastCureDiseaseGroupInstant())
+                            {
+                                spellToCast = MimicBody.CureDiseaseGroup;
+                                spellTarget = MimicBody;
+                            }
+                        }
+                        else if (MimicBody.IsPoisoned && nextCureTime < GameLoop.GameLoopTime)
+                        {
+                            if (CanCastCurePoison() && (!MimicBody.IsCasting || CanCastCurePoisonInstant()))
+                            {
+                                spellToCast = MimicBody.CurePoison;
+                                spellTarget = MimicBody;
+                            }
+                            else if (CanCastCurePoisonGroup() && (!MimicBody.IsCasting || CanCastCurePoisonGroupInstant()))
+                            {
+                                spellToCast = MimicBody.CurePoisonGroup;
+                                spellTarget = MimicBody;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (mGroup.MemberToCureDisease != null && nextCureTime < GameLoop.GameLoopTime)
+                        {
+                            if (CanCastCureDiseaseGroup()
+                                && (mGroup.NumNeedCureDisease > 1 || !CanCastCureDisease())
+                                && (!MimicBody.IsCasting || CanCastCureDiseaseGroupInstant()))
+                            {
+                                spellToCast = MimicBody.CureDiseaseGroup;
+                                spellTarget = mGroup.MemberToCureDisease;
+                            }
+                            else if (CanCastCureDisease()
+                                && (!MimicBody.IsCasting || CanCastCureDiseaseInstant()))
+                            {
+                                spellToCast = MimicBody.CureDisease;
+                                spellTarget = mGroup.MemberToCureDisease;
+                            }
+                        }
+                        else if (mGroup.MemberToCurePoison != null && nextCureTime < GameLoop.GameLoopTime)
+                        {
+                            if (CanCastCurePoisonGroup()
+                                && (mGroup.NumNeedCurePoison > 1 || !CanCastCurePoison())
+                                && (!MimicBody.IsCasting || CanCastCurePoisonGroupInstant()))
+                            {
+                                spellToCast = MimicBody.CurePoisonGroup;
+                                spellTarget = mGroup.MemberToCurePoison;
+                            }
+                            else if (CanCastCurePoison()
+                                && (!MimicBody.IsCasting || CanCastCurePoisonInstant()))
+                            {
+                                spellToCast = MimicBody.CurePoison;
+                                spellTarget = mGroup.MemberToCurePoison;
+                            }
+                        }
+                    }
+                }
+
+                #endregion
+ 
+                #region Non-Emergency Heal
+
+                if (spellToCast == null && numNeedHealing > 0)
+                {
+                    if (numNeedHealing > 1)
+                    {
+                        // Instant HoTs usually have low cooldowns, so spam them whenever possible
+                        if (CanCastInstantGroupHot()
+                            && MimicNPC.HealAmount(MimicBody.HealOverTimeInstantGroup, spellTarget) > GetHotEffect(MimicBody.HealOverTimeInstantGroup))
+                                spellToCast = MimicBody.HealOverTimeInstantGroup;
+                        else if (!MimicBody.IsCasting || (numEmergency > 0 && !isCastingHeal))
+                        {
+                            if (CanCastHotGroup()
+                                && MimicNPC.HealAmount(MimicBody.HealOverTimeGroup, spellTarget) > GetHotEffect(MimicBody.HealOverTimeGroup))
+                                    spellToCast = MimicBody.HealOverTimeGroup;
+                            else if (CanCastGroupHeal())
+                            {
+                                if (!CanCastEfficientHeal()
+                                    || (GetGroupHealVal() / MimicBody.PowerCost(MimicBody.HealGroup))
+                                    > (MimicNPC.HealAmount(MimicBody.HealEfficient, spellTarget) / MimicBody.PowerCost(MimicBody.HealEfficient)))
+                                        spellToCast = MimicBody.HealGroup;
+                            }
+                        }
+                    }
+
+                    if (spellToCast == null)
+                    {
+                        if (CanCastInstantHot()
+                            && MimicNPC.HealAmount(MimicBody.HealOverTimeInstant, spellTarget) > GetHotEffect(MimicBody.HealOverTimeInstant))
+                                spellToCast = MimicBody.HealOverTimeInstant;
+                        else if (CanCastInstantGroupHot()
+                            && MimicNPC.HealAmount(MimicBody.HealOverTimeInstantGroup, spellTarget) > GetHotEffect(MimicBody.HealOverTimeInstantGroup))
+                                spellToCast = MimicBody.HealOverTimeInstantGroup;
+                        else if (!MimicBody.IsCasting || (numEmergency > 0 && !isCastingHeal))
+                        {
+                            if (CanCastHot()
+                                && MimicNPC.HealAmount(MimicBody.HealOverTime, spellTarget) > GetHotEffect(MimicBody.HealOverTime))
+                                    spellToCast = MimicBody.HealOverTime;
+                            else if (CanCastHotGroup()
+                                && MimicNPC.HealAmount(MimicBody.HealOverTimeGroup, spellTarget) > GetHotEffect(MimicBody.HealOverTimeGroup))
+                                    spellToCast = MimicBody.HealOverTimeGroup;
+                            else if (MimicBody.ManaPercent >= ManaThreshold && CanCastBigHeal()
+                                && (spellTarget.MaxHealth - spellTarget.Health) >= MimicNPC.HealAmount(MimicBody.HealBig, spellTarget))
+                                    spellToCast = MimicBody.HealBig;
+                            else if (CanCastEfficientHeal())
+                                spellToCast = MimicBody.HealEfficient;
+                            else if (CanCastGroupHeal())
+                                // We don't have a single target heal, but we might have a CL group heal
+                                spellToCast = MimicBody.HealGroup;
+                        }
+                    }
+                }
+
+                #endregion
+ 
+                #region Cast Spell
+
+                if (spellToCast != null)
+                {
+                    if (!MimicBody.IsWithinRadius(spellTarget, new SpellHandler(MimicBody, spellToCast, m_mobSpellLine).CalculateSpellRange()))
+                    {
+                        MimicBody.WalkTo(new(spellTarget.X, spellTarget.Y, spellTarget.Z), MimicBody.MaxSpeed);
+                        return true;
+                    }
+
+                    if (!spellToCast.IsInstantCast)
+                    {
+                        if (MimicBody.IsCasting)
+                            MimicBody.StopCurrentSpellcast();
+                        else if (MimicBody.IsAttacking)
+                            MimicBody.StopAttack();
+                    }
+
+                    oldTarget = MimicBody.TargetObject;
+                    MimicBody.TargetObject = spellTarget;
+                    startedCasting = MimicBody.CastSpell(spellToCast, m_mobSpellLine, false);
+
+                    if (!startedCasting)
+                        MimicBody.TargetObject = oldTarget;
+                    else
+                    {
+                        if (spellToCast.IsInstantCast)
+                        {
+                            MimicBody.TargetObject = oldTarget;
+                            startedCasting = false;
+                        }
+                        else if (spellToCast.SpellType == eSpellType.CureDisease || spellToCast.SpellType == eSpellType.CurePoison)
+                            nextCureTime = GameLoop.GameLoopTime + CureDelay;
+
+                        if (mGroup != null)
+                            switch (spellToCast.SpellType)
+                            {
+                                case eSpellType.Heal:
+                                    if (spellToCast.IsInstantCast)
+                                        mGroup.AlreadyCastInstantHeal = true;
+                                    break;
+                                case eSpellType.HealOverTime: mGroup.AlreadyCastingHoT = true; break;
+                                case eSpellType.HealthRegenBuff: mGroup.AlreadyCastingRegen = true; break;
+                                case eSpellType.CureMezz: mGroup.AlreadyCastingCureMezz = true; break;
+                                case eSpellType.CureDisease: mGroup.AlreadyCastingCureDisease = true; break;
+                                case eSpellType.CurePoison: mGroup.AlreadyCastingCurePoison = true; break;
+                            }
+                    }
+                }
+            } // lock
+
+            #endregion
+
+            return startedCasting || isCastingHeal;
         }
 
         /// <summary>

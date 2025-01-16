@@ -8,14 +8,20 @@
 
     public class CabalistSpec : MimicSpec
     {
-        public CabalistSpec()
+        public CabalistSpec(eSpecType spec)
         {
             SpecName = "CabalistSpec";
 
             WeaponOneType = eObjectType.Staff;
             Is2H = true;
 
-            int randVariance = Util.Random(20);
+            var randVariance = spec switch
+            {
+                eSpecType.MatterCab => Util.Random(0, 6),
+                eSpecType.BodyCab => Util.Random(7, 13),
+                eSpecType.SpiritCab => Util.Random(14, 20),
+                _ => Util.Random(20),
+            };
 
             switch (randVariance)
             {

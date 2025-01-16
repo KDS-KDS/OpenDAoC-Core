@@ -8,14 +8,20 @@
 
     public class HealerSpec : MimicSpec
     {
-        public HealerSpec()
+        public HealerSpec(eSpecType spec)
         {
             SpecName = "HealerSpec";
 
             WeaponOneType = eObjectType.Hammer;
             Is2H = Util.RandomBool();
 
-            int randVariance = Util.Random(10);
+            var randVariance = spec switch
+            {
+                eSpecType.PacHealer => Util.Random(0, 5),
+                eSpecType.MendHealer => Util.Random(6, 8),
+                eSpecType.AugHealer => Util.Random(9, 10),
+                _ => Util.Random(10),
+            };
 
             switch (randVariance)
             {

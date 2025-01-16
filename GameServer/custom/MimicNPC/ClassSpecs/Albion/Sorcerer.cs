@@ -10,14 +10,19 @@ namespace DOL.GS.Scripts
 
     public class SorcererSpec : MimicSpec
     {
-        public SorcererSpec()
+        public SorcererSpec(eSpecType spec)
         {
             SpecName = "SorcererSpec";
 
             WeaponOneType = eObjectType.Staff;
             Is2H = true;
 
-            int randVariance = Util.Random(6);
+            var randVariance = spec switch
+            {
+                eSpecType.MindSorc => Util.Random(0, 3),
+                eSpecType.BodySorc => Util.Random(4, 6),
+                _ => Util.Random(6),
+            };
                     
             switch (randVariance)
             {

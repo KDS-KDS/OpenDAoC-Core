@@ -10,7 +10,7 @@ namespace DOL.GS.Scripts
 
     public class PaladinSpec : MimicSpec
     {
-        public PaladinSpec()
+        public PaladinSpec(eSpecType spec)
         {
             SpecName = "PaladinSpec";
 
@@ -36,7 +36,14 @@ namespace DOL.GS.Scripts
 
             WeaponTwoType = eObjectType.TwoHandedWeapon;
 
-            int randVariance = Util.Random(7);
+            var randVariance = spec switch
+            {
+                eSpecType.TwoHanded => Util.Random(0, 1),
+                eSpecType.TwoHandHybrid => Util.Random(0, 1),
+                eSpecType.OneHanded => Util.Random(2, 7),
+                eSpecType.OneHandAndShield => Util.Random(2, 7),
+                _ => Util.Random(7),
+            };
 
             switch (randVariance)
             {

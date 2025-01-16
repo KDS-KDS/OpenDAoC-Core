@@ -10,7 +10,7 @@ namespace DOL.GS.Scripts
 
     public class HeroSpec : MimicSpec
     {
-        public HeroSpec()
+        public HeroSpec(eSpecType spec)
         {
             SpecName = "HeroSpec";
             Is2H = false;
@@ -31,7 +31,15 @@ namespace DOL.GS.Scripts
             else
                 WeaponTwoType = eObjectType.LargeWeapons;
 
-            int randVariance = Util.Random(4);
+            var randVariance = spec switch
+            {
+                eSpecType.OneHanded => 0,
+                eSpecType.OneHandAndShield => 0,
+                eSpecType.TwoHanded => Util.Random(1, 4),
+                eSpecType.TwoHandAndShield => Util.Random(1, 4),
+                eSpecType.TwoHandHybrid => Util.Random(1, 4),
+                _ => Util.Random(4),
+            };
 
             switch (randVariance)
             {

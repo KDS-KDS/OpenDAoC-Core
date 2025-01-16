@@ -10,7 +10,7 @@ namespace DOL.GS.Scripts
 
     public class BlademasterSpec : MimicSpec
     {
-        public BlademasterSpec()
+        public BlademasterSpec(eSpecType spec)
         {
             SpecName = "BlademasterSpec";
             Is2H = false;
@@ -24,7 +24,12 @@ namespace DOL.GS.Scripts
                 case 2: WeaponOneType = eObjectType.Blunt; break;
             }
 
-            int randVariance = Util.Random(2);
+            var randVariance = spec switch
+            {
+                eSpecType.DualWield => Util.Random(1),
+                eSpecType.DualWieldAndShield => 2,
+                _ => Util.Random(2),
+            };
 
             switch (randVariance)
             {

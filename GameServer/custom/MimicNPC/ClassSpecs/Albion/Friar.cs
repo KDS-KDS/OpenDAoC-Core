@@ -12,14 +12,20 @@ namespace DOL.GS.Scripts
 
     public class FriarSpec : MimicSpec
     {
-        public FriarSpec()
+        public FriarSpec(eSpecType spec)
         {
             SpecName = "FriarSpec";
 
             WeaponOneType = eObjectType.Staff;
             Is2H = true;
 
-            int randVariance = Util.Random(8);
+            var randVariance = spec switch
+            {
+                eSpecType.StaffFriar => Util.Random(0, 4),
+                eSpecType.RejuvFriar => Util.Random(5, 7),
+                eSpecType.EnhanceFriar => 8,
+                _ => Util.Random(8),
+            };
 
             switch (randVariance)
             {
@@ -80,7 +86,7 @@ namespace DOL.GS.Scripts
                 break;
 
                 case 7:
-                SpecType = eSpecType.EnhanceFriar;
+                SpecType = eSpecType.RejuvFriar;
                 Add(Specs.Rejuvenation, 44, 0.8f);
                 Add(Specs.Enhancement, 49, 0.5f);
                 Add(Specs.Parry, 4, 0.1f);

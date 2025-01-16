@@ -548,12 +548,12 @@ namespace DOL.GS.Scripts
             return false;
         }
 
-        public static MimicNPC GetMimic(eMimicClass charClass, byte level, string name = "", eGender gender = eGender.Neutral, bool preventCombat = false)
+        public static MimicNPC GetMimic(eMimicClass charClass, byte level, string name = "", eGender gender = eGender.Neutral, eSpecType spec = eSpecType.None, bool preventCombat = false)
         {
             if (charClass == eMimicClass.None)
                 return null;
 
-            MimicNPC mimic = new MimicNPC(charClass, level);
+            MimicNPC mimic = new MimicNPC(charClass, level, gender, spec);
 
             if (mimic != null)
             {
@@ -1070,48 +1070,48 @@ namespace DOL.GS.Scripts
             return spec;
         }
 
-        public static MimicSpec GetSpec(eMimicClass charClass)
+        public static MimicSpec GetSpec(eMimicClass charClass, eSpecType spec = eSpecType.None)
         {
             switch (charClass)
             {
-                case eMimicClass.Armsman: return new ArmsmanSpec();
-                case eMimicClass.Cabalist: return new CabalistSpec();
-                case eMimicClass.Cleric: return new ClericSpec();
-                case eMimicClass.Friar: return new FriarSpec();
+                case eMimicClass.Armsman: return new ArmsmanSpec(spec);
+                case eMimicClass.Cabalist: return new CabalistSpec(spec);
+                case eMimicClass.Cleric: return new ClericSpec(spec);
+                case eMimicClass.Friar: return new FriarSpec(spec);
                 case eMimicClass.Infiltrator: return new InfiltratorSpec();
-                case eMimicClass.Mercenary: return new MercenarySpec();
+                case eMimicClass.Mercenary: return new MercenarySpec(spec);
                 case eMimicClass.Minstrel: return new MinstrelSpec();
-                case eMimicClass.Paladin: return new PaladinSpec();
+                case eMimicClass.Paladin: return new PaladinSpec(spec);
                 case eMimicClass.Reaver: return new ReaverSpec();
                 case eMimicClass.Scout: return new ScoutSpec();
-                case eMimicClass.Sorcerer: return new SorcererSpec();
-                case eMimicClass.Theurgist: return new TheurgistSpec();
-                case eMimicClass.Wizard: return new WizardSpec();
+                case eMimicClass.Sorcerer: return new SorcererSpec(spec);
+                case eMimicClass.Theurgist: return new TheurgistSpec(spec);
+                case eMimicClass.Wizard: return new WizardSpec(spec);
 
                 case eMimicClass.Bard: return new BardSpec();
-                case eMimicClass.Blademaster: return new BlademasterSpec();
-                case eMimicClass.Champion: return new ChampionSpec();
-                case eMimicClass.Druid: return new DruidSpec();
-                case eMimicClass.Eldritch: return new EldritchSpec();
-                case eMimicClass.Enchanter: return new EnchanterSpec();
-                case eMimicClass.Hero: return new HeroSpec();
-                case eMimicClass.Mentalist: return new MentalistSpec();
+                case eMimicClass.Blademaster: return new BlademasterSpec(spec);
+                case eMimicClass.Champion: return new ChampionSpec(spec);
+                case eMimicClass.Druid: return new DruidSpec(spec);
+                case eMimicClass.Eldritch: return new EldritchSpec(spec);
+                case eMimicClass.Enchanter: return new EnchanterSpec(spec);
+                case eMimicClass.Hero: return new HeroSpec(spec);
+                case eMimicClass.Mentalist: return new MentalistSpec(spec);
                 case eMimicClass.Nightshade: return new NightshadeSpec();
                 case eMimicClass.Ranger: return new RangerSpec();
                 case eMimicClass.Valewalker: return new ValewalkerSpec();
-                case eMimicClass.Warden: return new WardenSpec();
+                case eMimicClass.Warden: return new WardenSpec(spec);
 
                 case eMimicClass.Berserker: return new BerserkerSpec();
-                case eMimicClass.Bonedancer: return new BonedancerSpec();
-                case eMimicClass.Healer: return new HealerSpec();
+                case eMimicClass.Bonedancer: return new BonedancerSpec(spec);
+                case eMimicClass.Healer: return new HealerSpec(spec);
                 case eMimicClass.Hunter: return new HunterSpec();
-                case eMimicClass.Runemaster: return new RunemasterSpec();
-                case eMimicClass.Savage: return new SavageSpec();
-                case eMimicClass.Shadowblade: return new ShadowbladeSpec();
-                case eMimicClass.Shaman: return new ShamanSpec();
+                case eMimicClass.Runemaster: return new RunemasterSpec(spec);
+                case eMimicClass.Savage: return new SavageSpec(spec);
+                case eMimicClass.Shadowblade: return new ShadowbladeSpec(spec);
+                case eMimicClass.Shaman: return new ShamanSpec(spec);
                 case eMimicClass.Skald: return new SkaldSpec();
-                case eMimicClass.Spiritmaster: return new SpiritmasterSpec();
-                case eMimicClass.Thane: return new ThaneSpec();
+                case eMimicClass.Spiritmaster: return new SpiritmasterSpec(spec);
+                case eMimicClass.Thane: return new ThaneSpec(spec);
                 case eMimicClass.Warrior: return new WarriorSpec();
             }
 

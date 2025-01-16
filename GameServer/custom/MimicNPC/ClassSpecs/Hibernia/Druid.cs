@@ -10,7 +10,7 @@ namespace DOL.GS.Scripts
 
     public class DruidSpec : MimicSpec
     {
-        public DruidSpec()
+        public DruidSpec(eSpecType spec)
         {
             SpecName = "DruidSpec";
             Is2H = false;
@@ -23,7 +23,13 @@ namespace DOL.GS.Scripts
                 case 1: WeaponOneType = eObjectType.Blunt; break;
             }
 
-            int randVariance = Util.Random(6);
+            var randVariance = spec switch
+            {
+                eSpecType.NurtureDruid => Util.Random(3),
+                eSpecType.RegrowthDruid => 4,
+                eSpecType.NatureDruid => Util.Random(5, 6),
+                _ => Util.Random(6),
+            };
 
             switch (randVariance)
             {

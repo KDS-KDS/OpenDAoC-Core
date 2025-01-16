@@ -10,13 +10,19 @@ namespace DOL.GS.Scripts
 
     public class SpiritmasterSpec : MimicSpec
     {
-        public SpiritmasterSpec()
+        public SpiritmasterSpec(eSpecType spec)
         {
             SpecName = "SpiritmasterSpec";
             
             WeaponOneType = eObjectType.Staff;
 
-            int randVariance = Util.Random(9);
+            var randVariance = spec switch
+            {
+                eSpecType.DarkSpirit => Util.Random(0, 3),
+                eSpecType.SuppSpirit => Util.Random(4, 7),
+                eSpecType.SummSpirit => Util.Random(8, 9),
+                _ => Util.Random(9),
+            };
             
             switch (randVariance)
             {

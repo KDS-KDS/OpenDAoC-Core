@@ -10,7 +10,7 @@ namespace DOL.GS.Scripts
 
     public class MercenarySpec : MimicSpec
     {
-        public MercenarySpec()
+        public MercenarySpec(eSpecType spec)
         {
             SpecName = "MercenarySpec";
 
@@ -23,7 +23,12 @@ namespace DOL.GS.Scripts
                 case 2: WeaponOneType = eObjectType.CrushingWeapon; break;
             }
 
-            int randVariance = Util.Random(3);
+            var randVariance = spec switch
+            {
+                eSpecType.DualWield => Util.Random(0, 2),
+                eSpecType.DualWieldAndShield => 3,
+                _ => Util.Random(3),
+            };
 
             switch (randVariance)
             {

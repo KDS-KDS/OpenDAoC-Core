@@ -10,7 +10,7 @@ namespace DOL.GS.Scripts
 
     public class ChampionSpec : MimicSpec
     {
-        public ChampionSpec()
+        public ChampionSpec(eSpecType spec)
         {
             SpecName = "ChampionSpec";
 
@@ -25,7 +25,13 @@ namespace DOL.GS.Scripts
 
             WeaponTwoType = eObjectType.LargeWeapons;
 
-            int randVariance = Util.Random(3);
+            var randVariance = spec switch
+            {
+                eSpecType.OneHanded => Util.Random(0, 1),
+                eSpecType.OneHandAndShield => Util.Random(0, 1),
+                eSpecType.TwoHanded => 2,
+                _ => Util.Random(3),
+            };
 
             switch (randVariance)
             {

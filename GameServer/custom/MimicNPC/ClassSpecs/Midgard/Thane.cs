@@ -10,7 +10,7 @@ namespace DOL.GS.Scripts
 
     public class ThaneSpec : MimicSpec
     {
-        public ThaneSpec()
+        public ThaneSpec(eSpecType spec)
         {
             SpecName = "ThaneSpec";
 
@@ -23,7 +23,14 @@ namespace DOL.GS.Scripts
                 case 2: WeaponOneType = eObjectType.Hammer; break;
             }
 
-            int randVariance = Util.Random(3);
+            var randVariance = spec switch
+            {
+                eSpecType.OneHanded => Util.Random(0, 2),
+                eSpecType.OneHandAndShield => Util.Random(0,2),
+                eSpecType.OneHandHybrid => Util.Random(0, 2),
+                eSpecType.TwoHanded => 3,
+                _ => Util.Random(3),
+            };
 
             SpecType = eSpecType.Mid;
 

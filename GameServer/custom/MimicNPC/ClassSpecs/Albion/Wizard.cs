@@ -11,14 +11,20 @@ namespace DOL.GS.Scripts
 
     public class WizardSpec : MimicSpec
     {
-        public WizardSpec()
+        public WizardSpec(eSpecType spec)
         {
             SpecName = "WizardSpec";
 
             WeaponOneType = eObjectType.Staff;
             Is2H = true;
 
-            int randVariance = Util.Random(2);
+            var randVariance = spec switch
+            {
+                eSpecType.EarthWiz => 0,
+                eSpecType.IceWiz => 1,
+                eSpecType.FireWiz => 2,
+                _ => Util.Random(2),
+            };
             
             switch (randVariance)
             {

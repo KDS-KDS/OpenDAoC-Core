@@ -10,11 +10,17 @@ namespace DOL.GS.Scripts
 
     public class SavageSpec : MimicSpec
     {
-        public SavageSpec()
+        public SavageSpec(eSpecType spec)
         {
             SpecName = "SavageSpec";
 
-            int randBaseWeap = Util.Random(4);
+            var randBaseWeap = spec switch
+            {
+                eSpecType.TwoHanded => Util.Random(0, 2),
+                eSpecType.Mid => Util.Random(0, 2),
+                eSpecType.DualWield => Util.Random(3, 4),
+                _ => Util.Random(4),
+            };
 
             switch (randBaseWeap)
             {

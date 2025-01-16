@@ -44,6 +44,8 @@ namespace DOL.AI.Brain
 
         public override void Think()
         {
+            _brain.AlreadyCheckedHeals = false;
+
             if (!Init)
             {
                 _brain.AggroLevel = 100;
@@ -87,7 +89,7 @@ namespace DOL.AI.Brain
                 return;
             }
 
-            if (!_brain.PreventCombat)
+            if (!_brain.PreventCombat && !_brain.IsHealer)
             {
                 if (_brain.CheckProximityAggro(_brain.AggroRange))
                 {
@@ -115,6 +117,8 @@ namespace DOL.AI.Brain
 
         public override void Think()
         {
+            _brain.AlreadyCheckedHeals = false;
+
             _brain.CheckSpells(MimicBrain.eCheckSpellType.Defensive);
 
             base.Think();
@@ -148,6 +152,10 @@ namespace DOL.AI.Brain
 
         public override void Think()
         {
+            _brain.AlreadyCheckedHeals = false;
+            if (_brain.CheckHeals())
+                return;
+
             if (_brain.Body.Group == null || _leader == _brain.Body)
             {
                 _brain.Body.StopFollowing();
@@ -165,11 +173,12 @@ namespace DOL.AI.Brain
                 _brain.Body.Follow(_leader, _followDistance, 5000);
             }
 
-            if ((_leader.IsCasting || _leader.IsAttacking) && _leader.TargetObject is GameLiving livingTarget && _brain.CanAggroTarget(livingTarget))
+            if (!_brain.IsHealer 
+                && ((_leader.IsCasting && _leader.castingComponent.SpellHandler.Spell.IsHarmful) || _leader.IsAttacking)
+                && _leader.TargetObject is GameLiving livingTarget && _brain.CanAggroTarget(livingTarget))
             {
                 _brain.OnLeaderAggro();
                 _brain.AddToAggroList(livingTarget, 1);
-                _brain.FSM.SetCurrentState(eFSMStateType.AGGRO);
                 return;
             }
 
@@ -242,13 +251,15 @@ namespace DOL.AI.Brain
 
         public override void Think()
         {
+            _brain.AlreadyCheckedHeals = false;
+
             if (_brain.PvPMode && _checkAggroTime < GameLoop.GameLoopTime)
             {
                 _brain.CheckProximityAggro(_brain.AggroRange);
                 _checkAggroTime = GameLoop.GameLoopTime + 5000;
                 _aggroEndTime = GameLoop.GameLoopTime + LEAVE_WHEN_OUT_OF_COMBAT_FOR;
             }
-
+ 
             if (!_brain.HasAggro || (!_brain.Body.InCombatInLast(LEAVE_WHEN_OUT_OF_COMBAT_FOR) && ServiceUtils.ShouldTick(_aggroEndTime)))
             {
                 if (!_brain.Body.IsMezzed && !_brain.Body.IsStunned)
@@ -299,7 +310,10 @@ namespace DOL.AI.Brain
                 }
             }
 
-            _brain.AttackMostWanted();
+            if (_brain.IsHealer)
+                _brain.CheckHeals();
+            else
+                _brain.AttackMostWanted();
 
             base.Think();
         }
@@ -332,7 +346,9 @@ namespace DOL.AI.Brain
 
         public override void Think()
         {
-            if (_brain.PreventCombat)
+            _brain.AlreadyCheckedHeals = false;
+
+            if (_brain.PreventCombat || _brain.IsHealer)
                 return;
 
             if (_brain.CheckProximityAggro(_brain.AggroRange))
@@ -410,6 +426,10 @@ namespace DOL.AI.Brain
 
         public override void Think()
         {
+            _brain.AlreadyCheckedHeals = false;
+            if (_brain.CheckHeals())
+                return;
+
             if (!_brain.IsPulling && _brain.Body.IsDestinationValid)
                 return;
 
@@ -419,11 +439,20 @@ namespace DOL.AI.Brain
             if (_brain.IsMainCC)
                 _brain.CheckMainCC();
 
-            if (!_brain.IsPulling)
+            if (!_brain.IsPulling && !_brain.IsHealer)
             {
-                if (_brain.CheckProximityAggro(_brain.AggroRange))
+                GameLiving _leader = _brain.MimicBody.Group?.MimicGroup.MainLeader;
+                GameLiving leaderTarget = _leader?.TargetObject as GameLiving;
+
+                if ((_leader != null 
+                        && ((_leader.IsCasting && _leader.castingComponent.SpellHandler.Spell.IsHarmful) || _leader.IsAttacking)
+                        && _brain.CanAggroTarget(leaderTarget))
+                    || _brain.CheckProximityAggro(_brain.AggroRange))
                 {
                     _brain.FSM.SetCurrentState(eFSMStateType.AGGRO);
+                    if (leaderTarget != null)
+                        _brain.AddToAggroList(leaderTarget, 1);
+                    _brain.AttackMostWanted();
                     return;
                 }
             }
@@ -458,6 +487,10 @@ namespace DOL.AI.Brain
 
         public override void Think()
         {
+            _brain.AlreadyCheckedHeals = false;
+            if (_brain.CheckHeals())
+                return;
+
             if (!_brain.Body.IsNearSpawn &&
                 (!_brain.HasAggro || !_brain.Body.IsEngaging) &&
                 (!_brain.Body.IsReturningToSpawnPoint) &&
@@ -475,7 +508,7 @@ namespace DOL.AI.Brain
                 return;
             }
 
-            if (!_brain.PreventCombat)
+            if (!_brain.PreventCombat && !_brain.IsHealer)
             {
                 if (_brain.CheckProximityAggro(_brain.AggroRange))
                 {
@@ -507,7 +540,11 @@ namespace DOL.AI.Brain
 
         public override void Think()
         {
-            if (!_brain.PreventCombat)
+            _brain.AlreadyCheckedHeals = false;
+            if (_brain.CheckHeals())
+                return;
+
+            if (!_brain.PreventCombat && !_brain.IsHealer)
             {
                 if (_brain.CheckProximityAggro(_brain.AggroRange))
                 {
@@ -543,6 +580,8 @@ namespace DOL.AI.Brain
 
         public override void Think()
         {
+            _brain.AlreadyCheckedHeals = false;
+
             if (!_brain.CheckSpells(MimicBrain.eCheckSpellType.Defensive))
                 _brain.MimicBody.IsDuelReady = true;
 

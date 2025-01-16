@@ -10,15 +10,21 @@ namespace DOL.GS.Scripts
 
     public class MentalistSpec : MimicSpec
     {
-        public MentalistSpec()
+        public MentalistSpec(eSpecType spec)
         {
             SpecName = "MentalistSpec";
 
             WeaponOneType = eObjectType.Staff;
             Is2H = true;
 
-            int randVariance = Util.Random(13);
-            
+            var randVariance = spec switch
+            {
+                eSpecType.LightMenta => Util.Random(0, 4),
+                eSpecType.ManaMenta => Util.Random(5, 9),
+                eSpecType.MentaMenta => Util.Random(10, 13),
+                _ => Util.Random(13),
+            };
+
             switch (randVariance)
             {
                 case 0:

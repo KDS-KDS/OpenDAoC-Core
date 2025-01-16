@@ -5,10 +5,8 @@ using DOL.Events;
 using DOL.GS.Effects;
 using DOL.GS.Keeps;
 using DOL.GS.PacketHandler;
-using DOL.GS.PacketHandler.Client.v168;
 using DOL.GS.PlayerClass;
 using DOL.GS.PropertyCalc;
-using DOL.GS.Quests;
 using DOL.GS.Realm;
 using DOL.GS.RealmAbilities;
 using DOL.GS.ServerProperties;
@@ -17,7 +15,6 @@ using DOL.GS.Styles;
 using DOL.GS.Utils;
 using DOL.Language;
 using JNogueira.Discord.Webhook.Client;
-using log4net.Core;
 using Microsoft.CodeAnalysis;
 using System;
 using System.Collections;
@@ -91,7 +88,7 @@ namespace DOL.GS.Scripts
 
         private int m_leftOverSpecPoints = 0;
 
-        public MimicNPC(eMimicClass cClass, byte level, eGender gender = eGender.Neutral)
+        public MimicNPC(eMimicClass cClass, byte level, eGender gender = eGender.Neutral, eSpecType spec = eSpecType.None)
         {
             _dummyClient = new DummyClient(GameServer.Instance);
             _dummyLib = new DummyPacketLib();
@@ -99,7 +96,7 @@ namespace DOL.GS.Scripts
             Inventory = new MimicNPCInventory();
             MaxSpeedBase = PLAYER_BASE_SPEED;
 
-            MimicSpec = MimicSpec.GetSpec(cClass);
+            MimicSpec = MimicSpec.GetSpec(cClass, spec);
             SetCharacterClass((int)cClass);
             SetRaceAndName();
             SetBrain(cClass);
@@ -222,14 +219,14 @@ namespace DOL.GS.Scripts
         {
             foreach (Ability ability in GetAllAbilities())
             {
-                switch (ability.ID)
+                switch (ability.KeyName)
                 {
-                    case 85: MimicEquipment.SetRangedWeapon(this, eObjectType.Thrown); break;
-                    case 138: MimicEquipment.SetRangedWeapon(this, eObjectType.Fired); break;
-                    case 143: MimicEquipment.SetRangedWeapon(this, eObjectType.Crossbow); break;
-                    case 160: MimicEquipment.SetRangedWeapon(this, eObjectType.RecurvedBow); SwitchWeapon(eActiveWeaponSlot.Distance); break;
-                    case 170: MimicEquipment.SetRangedWeapon(this, eObjectType.Longbow); SwitchWeapon(eActiveWeaponSlot.Distance); break;
-                    case 183: MimicEquipment.SetRangedWeapon(this, eObjectType.CompositeBow); SwitchWeapon(eActiveWeaponSlot.Distance); break;
+                    case GS.Abilities.Weapon_Thrown: MimicEquipment.SetRangedWeapon(this, eObjectType.Thrown); break;
+                    case GS.Abilities.Weapon_Shortbows: MimicEquipment.SetRangedWeapon(this, eObjectType.Fired); break;
+                    case GS.Abilities.Weapon_Crossbow: MimicEquipment.SetRangedWeapon(this, eObjectType.Crossbow); break;
+                    case GS.Abilities.Weapon_RecurvedBows: MimicEquipment.SetRangedWeapon(this, eObjectType.RecurvedBow); SwitchWeapon(eActiveWeaponSlot.Distance); break;
+                    case GS.Abilities.Weapon_Longbows: MimicEquipment.SetRangedWeapon(this, eObjectType.Longbow); SwitchWeapon(eActiveWeaponSlot.Distance); break;
+                    case GS.Abilities.Weapon_CompositeBows: MimicEquipment.SetRangedWeapon(this, eObjectType.CompositeBow); SwitchWeapon(eActiveWeaponSlot.Distance); break;
                 }
             }
         }
@@ -280,14 +277,14 @@ namespace DOL.GS.Scripts
 
         public override bool Interact(GamePlayer player)
         {
-            if (!base.Interact(player))
+            if (this.InCombat || !base.Interact(player))
                 return false;
 
             player.Out.SendMessage(
                 "---------------------------------------\n" +
                 "[State] [Prevent Combat] [Brain] [Debug]\n\n " +
                 "[Group] - [Leader] - [MainPuller] - [MainCC] - [MainTank] - [MainAssist]\n\n " +
-                "[Guard]\n\n " +
+                "[Guard] [Protect] [Intercept]\n\n " +
                 "[Spells] - [Inst Harmful] - [Harmful Spells] - [Inst Misc] - [Misc Spells] - [Inst Heal] - [Heal Spells] - [CC]\n\n " +
                 "[Styles] - [Abilities]\n\n " +
                 "[Spec] - [Stats] - [Ability Effects] - [Spell Effects]\n\n " +
@@ -407,6 +404,60 @@ namespace DOL.GS.Scripts
 
                     break;
                 }
+
+                case "Protect":
+                    {
+                        if (!HasAbility("Protect"))
+                        {
+                            message = "I do not have that ability.";
+                            break;
+                        }
+
+                        if (Group == null || Group != null && !Group.IsInTheGroup(player))
+                        {
+                            message = "We must be in the same group.";
+                            break;
+                        }
+
+                        if (MimicBrain.SetProtect(player, out bool foundOurEffect))
+                            message = "I will protect you.";
+                        else
+                        {
+                            if (foundOurEffect)
+                                message = "I will no longer protect you.";
+                            else
+                                message = "I cannot protect you.";
+                        }
+
+                        break;
+                    }
+
+                case "Intercept":
+                    {
+                        if (!HasAbility("Intercept"))
+                        {
+                            message = "I do not have that ability.";
+                            break;
+                        }
+
+                        if (Group == null || Group != null && !Group.IsInTheGroup(player))
+                        {
+                            message = "We must be in the same group.";
+                            break;
+                        }
+
+                        if (MimicBrain.SetIntercept(player, out bool foundOurEffect))
+                            message = "I will intercept for you.";
+                        else
+                        {
+                            if (foundOurEffect)
+                                message = "I will no longer intercept for you.";
+                            else
+                                message = "I cannot intercept for you.";
+                        }
+
+                        break;
+                    }
 
                 case "Spells":
                 {
@@ -844,6 +895,17 @@ namespace DOL.GS.Scripts
             return specpoints;
         }
 
+        #region Spells
+
+        public override void OnCastSpellLosCheckFail(GameObject target)
+        {
+            // Try to move into LOS so we don't get stuck chain casting in place
+            if (target is GameLiving)
+                WalkTo(new(target.X, target.Y, target.Z), MaxSpeed);
+
+            base.OnCastSpellLosCheckFail(target);
+        }
+
         public void SetSpells()
         {
             List<Spell> spells = new List<Spell>();
@@ -978,6 +1040,102 @@ namespace DOL.GS.Scripts
             }
         }
 
+        /// <summary>Calculate actual spell power cost, while minimizing calls to MaxMana property calculator</summary>
+        /// <param name="spell"></param>
+        /// <returns>Actual power cost</returns>
+        public int PowerCost(Spell spell)
+        {
+            // Copied from SpellHandler, leaving code for future classes commented out
+
+            int powerCost = spell.Power;
+
+            // Warlock.
+            /* GameSpellEffect effect = SpellHandler.FindEffectOnTarget(m_caster, "Powerless");
+			if (effect != null && !m_spell.IsPrimary)
+				return 0;*/
+
+            /* Valkyrie
+            // 1.108 - Valhalla's Blessing now has a 75% chance to not use power.
+            if (m_caster.EffectList.GetOfType<ValhallasBlessingEffect>() != null && Util.Chance(75))
+                return 0;
+            */
+
+            /* Animist
+            // Patch 1.108 increases the chance to not use power to 50%.
+            if (m_caster.EffectList.GetOfType<FungalUnionEffect>() != null && Util.Chance(50))
+                return 0;
+            */
+
+            /* ToA
+            // Arcane Syphon.
+            int syphon = Caster.GetModified(eProperty.ArcaneSyphon);
+            if (syphon > 0 && Util.Chance(syphon))
+                return 0;
+            */
+
+            // Percent of max power if less than zero.
+            if (powerCost < 0)
+            {
+                if (CharacterClass.ManaStat is not eStat.UNDEFINED)
+                    powerCost = (int)(CalculateMaxMana(Level, GetBaseStat(CharacterClass.ManaStat)) * powerCost * -0.01);
+                else
+                    powerCost = (int)(MaxMana * powerCost * -0.01);
+            }
+
+            /* Mimics currently use the mob spell line, which SpecToFocus() doesn't recognize
+            if (playerCaster != null && playerCaster.CharacterClass.FocusCaster)
+            {
+                eProperty focusProp = SkillBase.SpecToFocus(SpellLine.Spec);
+
+                if (focusProp is not eProperty.Undefined)
+                {
+                    double focusBonus = Caster.GetModified(focusProp) * 0.4;
+
+                    if (Spell.Level > 0)
+                        focusBonus /= Spell.Level;
+
+                    if (focusBonus > 0.4)
+                        focusBonus = 0.4;
+                    else if (focusBonus < 0)
+                        focusBonus = 0;
+
+                    focusBonus *= Math.Min(1, playerCaster.GetModifiedSpecLevel(SpellLine.Spec) / (double)Spell.Level);
+                    powerCost *= 1.2 - focusBonus; // Between 120% and 80% of base power cost.
+                }
+            } */
+
+            /* Healing doesn't use quickcast, and it's not really worth it just for mentalists
+            // Doubled power usage if using QuickCast.
+            if (EffectListService.GetAbilityEffectOnTarget(this, eEffect.QuickCast) != null && spell.CastTime > 0)
+                powerCost *= 2;
+            */
+
+            return powerCost;
+        }
+
+        ///<summary>Calculate heal amount, accounting for percentage based heals</summary>
+        public static double HealAmount(Spell spell, GameLiving target)
+        {
+            return spell.Value >= 0
+                ? spell.Value
+                : target.MaxHealth * spell.Value * -0.01d;
+        }
+
+        public Spell HealBig { get; protected set; } = null;
+        public Spell HealEfficient { get; protected set; } = null;
+        public Spell HealGroup { get; protected set; } = null;
+        public Spell HealInstant { get; protected set; } = null;
+        public Spell HealInstantGroup { get; protected set; } = null;
+        public Spell HealOverTime { get; protected set; } = null;
+        public Spell HealOverTimeGroup { get; protected set; } = null;
+        public Spell HealOverTimeInstant { get; protected set; } = null;
+        public Spell HealOverTimeInstantGroup { get; protected set; } = null;
+        public Spell CureMezz { get; protected set; } = null;
+        public Spell CureDisease { get; protected set; } = null;
+        public Spell CureDiseaseGroup { get; protected set; } = null;
+        public Spell CurePoison { get; protected set; } = null;
+        public Spell CurePoisonGroup { get; protected set; } = null;
+
         public override void SortSpells()
         {
             if (Spells.Count < 1)
@@ -993,6 +1151,21 @@ namespace DOL.GS.Scripts
             BoltSpells?.Clear();
             InstantMiscSpells?.Clear();
             MiscSpells?.Clear();
+
+            HealBig = null;
+            HealEfficient = null;
+            HealGroup = null;
+            HealInstant = null;
+            HealInstantGroup = null;
+            HealOverTime = null;
+            HealOverTimeGroup = null;
+            HealOverTimeInstant = null;
+            HealOverTimeInstantGroup = null;
+            CureMezz = null;
+            CureDisease = null;
+            CureDiseaseGroup = null;
+            CurePoison = null;
+            CurePoisonGroup = null;
 
             // Sort spells into lists
             foreach (Spell spell in m_spells)
@@ -1041,18 +1214,90 @@ namespace DOL.GS.Scripts
                         HarmfulSpells.Add(spell);
                     }
                 }
-                else if (spell.IsHealing && !spell.IsPulsing)
+                else if (spell.IsHealing && !spell.IsPulsing && !spell.IsConcentration)
                 {
                     // TODO: Move pet heals somewhere else
                     if (spell.Target == eSpellTarget.PET)
                         continue;
 
-                    if (spell.IsInstantCast)
+                    double valueNew = HealAmount(spell, this);
+
+                    if (spell.SpellType == eSpellType.CureMezz)
+                        CureMezz = spell;
+                    else if (spell.SpellType == eSpellType.CureDisease)
+                    {
+                        if ((spell.Target == eSpellTarget.GROUP || spell.Radius > 0)
+                            && (CureDiseaseGroup == null || spell.Duration > CureDiseaseGroup.Duration))
+                            CureDiseaseGroup = spell;
+                        else if (spell.Target == eSpellTarget.REALM && (CureDisease == null || spell.Duration > CureDisease.Duration))
+                            CureDisease = spell;
+                    }
+                    else if (spell.SpellType == eSpellType.CurePoison)
+                    {
+                        if ((spell.Target == eSpellTarget.GROUP || spell.Radius > 0)
+                            && (CurePoisonGroup == null || spell.Duration > CurePoisonGroup.Duration))
+                            CurePoisonGroup = spell;
+                        else if (spell.Target == eSpellTarget.REALM && (CurePoison == null || spell.Duration > CurePoison.Duration))
+                            CurePoison = spell;
+                    }
+                    else if (spell.IsInstantCast)
                     {
                         if (InstantHealSpells == null)
                             InstantHealSpells = new List<Spell>(1);
 
                         InstantHealSpells.Add(spell);
+
+                        if (spell.SpellType == eSpellType.HealOverTime || spell.SpellType == eSpellType.HealthRegenBuff)
+                        {
+                            // Valks have both regens and hots, so we need to compare actual healing over time in combat
+                            if (spell.Target == eSpellTarget.GROUP || spell.Radius > 0)
+                            {
+                                if (HealOverTimeInstantGroup == null)
+                                    HealOverTimeInstantGroup = spell;
+                                else
+                                {
+                                    double perSecondOld = HealOverTimeInstantGroup.SpellType == eSpellType.HealOverTime
+                                        ? HealAmount(HealOverTimeInstantGroup, this) / HealOverTimeInstantGroup.Frequency
+                                        : HealAmount(HealOverTimeInstantGroup, this) / HealthRegenerationPeriod / 2;
+                                    double perSecondNew = spell.SpellType == eSpellType.HealOverTime
+                                        ? valueNew / spell.Frequency
+                                        : valueNew / HealthRegenerationPeriod / 2;
+
+                                    if (perSecondNew > perSecondOld)
+                                        HealOverTimeInstantGroup = spell;
+                                }
+                            }
+                            else if (spell.Target == eSpellTarget.REALM)
+                            {
+                                if (HealOverTimeInstant == null)
+                                    HealOverTimeInstant = spell;
+                                else
+                                {
+                                    double perSecondOld = HealOverTimeInstant.SpellType == eSpellType.HealOverTime
+                                        ? HealAmount(HealOverTimeInstant, this) / HealOverTimeInstant.Frequency
+                                        : HealAmount(HealOverTimeInstant, this) / HealthRegenerationPeriod / 2;
+                                    double perSecondNew = spell.SpellType == eSpellType.HealOverTime
+                                        ? valueNew / spell.Frequency
+                                        : valueNew / HealthRegenerationPeriod / 2;
+
+                                    if (perSecondNew > perSecondOld)
+                                        HealOverTimeInstant = spell;
+                                }
+                            }
+                        }
+                        else if (spell.SpellType == eSpellType.Heal)
+                        {
+                            if (spell.Target == eSpellTarget.GROUP || spell.Radius > 0)
+                            {
+                                if (HealInstantGroup == null || valueNew > HealAmount(HealInstantGroup, this))
+                                    HealInstantGroup = spell;
+                            }
+                            else if (spell.Target == eSpellTarget.REALM)
+                            {
+                                if (HealInstant == null || valueNew > HealAmount(HealInstant, this))
+                                    HealInstant = spell;
+                            }
+                        }
                     }
                     else
                     {
@@ -1060,6 +1305,78 @@ namespace DOL.GS.Scripts
                             HealSpells = new List<Spell>(1);
 
                         HealSpells.Add(spell);
+
+                        if (spell.SpellType == eSpellType.HealOverTime || spell.SpellType == eSpellType.HealthRegenBuff)
+                        {
+                            // Valks have both regens and hots, so we need to compare actual healing over time in combat
+                            if (spell.Target == eSpellTarget.GROUP || spell.Radius > 0)
+                            {
+                                if (HealOverTimeGroup == null)
+                                    HealOverTimeGroup = spell;
+                                else
+                                {
+                                    double perSecondOld = HealOverTimeGroup.SpellType == eSpellType.HealOverTime
+                                        ? HealAmount(HealOverTimeGroup, this) / HealOverTimeGroup.Frequency
+                                        : HealAmount(HealOverTimeGroup, this) / HealthRegenerationPeriod / 2;
+                                    double perSecondNew = spell.SpellType == eSpellType.HealOverTime
+                                        ? valueNew / spell.Frequency
+                                        : valueNew / HealthRegenerationPeriod / 2;
+
+                                    if (perSecondNew > perSecondOld)
+                                        HealOverTimeGroup = spell;
+                                }
+                            }
+                            else if (spell.Target == eSpellTarget.REALM)
+                            {
+                                if (HealOverTime == null)
+                                    HealOverTime = spell;
+                                else
+                                {
+                                    double perSecondOld = HealOverTime.SpellType == eSpellType.HealOverTime
+                                        ? HealAmount(HealOverTime, this) / HealOverTime.Frequency
+                                        : HealAmount(HealOverTime, this) / HealthRegenerationPeriod / 2;
+                                    double perSecondNew = spell.SpellType == eSpellType.HealOverTime
+                                        ? valueNew / spell.Frequency
+                                        : valueNew / HealthRegenerationPeriod / 2;
+
+                                    if (perSecondNew > perSecondOld)
+                                        HealOverTime = spell;
+                                }
+                            }
+                        }
+                        else if (spell.SpellType == eSpellType.Heal)
+                        {
+                            if (spell.Target == eSpellTarget.GROUP || spell.Radius > 0)
+                            {
+                                if (HealGroup == null || valueNew / spell.CastTime > HealAmount(HealGroup, this) / HealGroup.CastTime)
+                                    HealGroup = spell;
+                            }
+                            else if (spell.Target == eSpellTarget.REALM)
+                            {
+                                if (HealEfficient == null)
+                                    HealEfficient = spell;
+                                else
+                                {
+                                    double perSecondNew = valueNew / spell.CastTime;
+                                    double perSecondEff = HealAmount(HealEfficient, this) / HealEfficient.CastTime;
+                                    double perSecondBig = HealBig == null ? 0.0 : HealAmount(HealBig, this) / HealBig.CastTime;
+
+                                    // Add a small margin for new spell efficiency, so we use bigger spec heals when they're almost as efficient
+                                    double effNew = valueNew / PowerCost(spell) + 0.25;
+                                    double effOld = HealAmount(HealEfficient, this) / PowerCost(HealEfficient);
+
+                                    if (effNew > effOld)
+                                    {
+                                        if (perSecondEff > perSecondNew && perSecondEff > perSecondBig)
+                                            HealBig = HealEfficient;
+
+                                        HealEfficient = spell;
+                                    }
+                                    else if (perSecondNew > perSecondEff && perSecondNew > perSecondBig)
+                                        HealBig = spell;
+                                }
+                            }
+                        }
                     }
                 }
                 else
@@ -1082,6 +1399,8 @@ namespace DOL.GS.Scripts
                 }
             }
         }
+
+        #endregion
 
         public override void SortStyles()
         {

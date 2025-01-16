@@ -14,7 +14,7 @@ namespace DOL.GS.Scripts
 
     public class ArmsmanSpec : MimicSpec
     {
-        public ArmsmanSpec()
+        public ArmsmanSpec(eSpecType spec)
         {
             SpecName = "ArmsmanSpec";
 
@@ -45,7 +45,16 @@ namespace DOL.GS.Scripts
             else
                 WeaponTwoType = eObjectType.TwoHandedWeapon;
 
-            int randVariance = Util.Random(5);
+            var randVariance = spec switch
+            {
+                eSpecType.OneHanded => Util.Random(0, 1),
+                eSpecType.OneHandAndShield => Util.Random(0, 1),
+                eSpecType.OneHandHybrid => 2,
+                eSpecType.TwoHandAndShield => Util.Random(3, 4),
+                eSpecType.TwoHandHybrid => Util.Random(3, 4),
+                eSpecType.TwoHanded => 5,
+                _ => Util.Random(5),
+            };
 
             switch (randVariance)
             {

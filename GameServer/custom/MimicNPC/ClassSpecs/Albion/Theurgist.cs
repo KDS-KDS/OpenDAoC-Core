@@ -10,14 +10,20 @@ namespace DOL.GS.Scripts
 
     public class TheurgistSpec : MimicSpec
     {
-        public TheurgistSpec()
+        public TheurgistSpec(eSpecType  spec)
         {
             SpecName = "TheurgistSpec";
 
             WeaponOneType = eObjectType.Staff;
             Is2H = true;
 
-            int randVariance = Util.Random(2);
+            var randVariance = spec switch
+            {
+                eSpecType.AirTheur => 0,
+                eSpecType.IceTheur => 1,
+                eSpecType.EarthTheur => 2,
+                _ => Util.Random(2),
+            };
             
             switch (randVariance)
             {

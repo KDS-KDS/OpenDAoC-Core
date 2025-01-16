@@ -10,14 +10,20 @@ namespace DOL.GS.Scripts
 
     public class RunemasterSpec : MimicSpec
     {
-        public RunemasterSpec()
+        public RunemasterSpec(eSpecType spec)
         {
             SpecName = "RunemasterSpec";
 
             WeaponOneType = eObjectType.Staff;
             Is2H = true;
 
-            int randVariance = Util.Random(7);
+            var randVariance = spec switch
+            {
+                eSpecType.DarkRune => Util.Random(0, 1),
+                eSpecType.RuneRune => Util.Random(2, 4),
+                eSpecType.SuppRune => Util.Random(5, 7),
+                _ => Util.Random(7),
+            };
             
             switch (randVariance)
             {

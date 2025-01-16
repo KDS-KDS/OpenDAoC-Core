@@ -10,13 +10,19 @@ namespace DOL.GS.Scripts
 
     public class ClericSpec : MimicSpec
     {
-        public ClericSpec()
+        public ClericSpec(eSpecType spec)
         {
             SpecName = "ClericSpec";
 
             WeaponOneType = eObjectType.CrushingWeapon;
 
-            int randVariance = Util.Random(7);
+            var randVariance = spec switch
+            {
+                eSpecType.EnhanceCleric => Util.Random(0, 3),
+                eSpecType.RejuvCleric => Util.Random(4, 5),
+                eSpecType.SmiteCleric => Util.Random(6, 7),
+                _ => Util.Random(7),
+            };
 
             switch (randVariance)
             {

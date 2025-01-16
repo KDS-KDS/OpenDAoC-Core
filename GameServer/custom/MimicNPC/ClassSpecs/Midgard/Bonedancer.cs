@@ -10,15 +10,21 @@ namespace DOL.GS.Scripts
 
     public class BonedancerSpec : MimicSpec
     {
-        public BonedancerSpec()
+        public BonedancerSpec(eSpecType spec)
         {
             SpecName = "BonedancerSpec";
 
             WeaponOneType = eObjectType.Staff;
             Is2H = true;
 
-            int randVariance = Util.Random(5);
-            
+            var randVariance = spec switch
+            {
+                eSpecType.SuppBone => Util.Random(0, 2),
+                eSpecType.DarkBone => Util.Random(3, 4),
+                eSpecType.ArmyBone => 5,
+                _ => Util.Random(5),
+            };
+
             switch (randVariance)
             {
                 case 0:

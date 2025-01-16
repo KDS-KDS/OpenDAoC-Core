@@ -10,14 +10,20 @@ namespace DOL.GS.Scripts
 
     public class EldritchSpec : MimicSpec
     {
-        public EldritchSpec()
+        public EldritchSpec(eSpecType spec)
         {
             SpecName = "EldritchSpec";
 
             WeaponOneType = eObjectType.Staff;
             Is2H = true;
 
-            int randVariance = Util.Random(11);
+            var randVariance = spec switch
+            {
+                eSpecType.LightEld => Util.Random(0, 3),
+                eSpecType.ManaEld => Util.Random(4, 7),
+                eSpecType.VoidEld => Util.Random(8, 11),
+                _ => Util.Random(11),
+            };
 
             switch (randVariance)
             {

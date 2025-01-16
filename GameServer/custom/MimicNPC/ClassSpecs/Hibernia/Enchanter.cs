@@ -10,14 +10,19 @@ namespace DOL.GS.Scripts
 
     public class EnchanterSpec : MimicSpec
     {
-        public EnchanterSpec()
+        public EnchanterSpec(eSpecType spec)
         {
             SpecName = "EnchanterSpec";
 
             WeaponOneType = eObjectType.Staff;
             Is2H = true;
 
-            int randVariance = Util.Random(3);
+            var randVariance = spec switch
+            {
+                eSpecType.ManaEnchanter => Util.Random(0, 1),
+                eSpecType.LightEnchanter => Util.Random(2, 3),
+                _ => Util.Random(3),
+            };
 
             switch (randVariance)
             {

@@ -10,7 +10,7 @@ namespace DOL.GS.Scripts
 
     public class ShadowbladeSpec : MimicSpec
     {
-        public ShadowbladeSpec()
+        public ShadowbladeSpec(eSpecType spec)
         {
             SpecName = "ShadowbladeSpec";
 
@@ -24,7 +24,14 @@ namespace DOL.GS.Scripts
 
             WeaponTwoType = eObjectType.Axe;
 
-            int randVariance = Util.Random(4);
+            var randVariance = spec switch
+            {
+                eSpecType.DualWield => Util.Random(0, 3),
+                eSpecType.LeftAxe => Util.Random(0, 3),
+                eSpecType.TwoHanded => 4,
+                eSpecType.Mid => 4,
+                _ => Util.Random(4),
+            };
 
             switch (randVariance)
             {

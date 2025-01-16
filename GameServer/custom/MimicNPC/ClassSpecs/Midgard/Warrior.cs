@@ -33,12 +33,14 @@ namespace DOL.GS.Scripts
                 Add(ObjToSpec(WeaponOneType), 50, 0.8f);
                 Add(Specs.Shields, 42, 0.5f);
                 Add(Specs.Parry, 39, 0.2f);
+                Add(Specs.Thrown_Weapons, 13, 0.0f);
                 break;
 
                 case 1:
                 Add(ObjToSpec(WeaponOneType), 50, 0.8f);
                 Add(Specs.Shields, 50, 0.5f);
                 Add(Specs.Parry, 28, 0.2f);
+                Add(Specs.Thrown_Weapons, 13, 0.0f);
                 break;
             }
         }
